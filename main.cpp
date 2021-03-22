@@ -11,6 +11,7 @@
 #include "ichigoplus/layer_driver/circuit/sbdbt.hpp"
 #include "ichigoplus/layer_driver/circuit/can_motor_driver.hpp"
 #include "ichigoplus/layer_driver/circuit/can_encoder.hpp"
+#include "ichigoplus/lib_src/utilplus.hpp"
 //device
 #include "layer_driver/device/pin.hpp"
 
@@ -78,7 +79,10 @@ int main()
 	Sw3 sw3;
 	sw3.setupDigitalIn();
 
-	//Pwm
+	//UpEdge
+    rp_lib::UpEdge upEdge;
+
+    //Pwm
 	Pwm0 pwm0;
 	Pwm1 pwm1;
 	Pwm2 pwm2;
@@ -169,6 +173,7 @@ int main()
 	exeFunc.addFunc("reset", [&] { NVIC_SystemReset(); });
 	exeFunc.addFunc("enc", [&] { forCons.printf("enc_count:%d  adEnc_count:%d\n", canEnc0.count(), adEnc0.count()); });
 	exeFunc.addFunc("mc",  [&] { forCons.printf("pos:%7.2f  vel:%7.2f  acc:%7.2f  duty:%5.2f\n", mc0.pos(), mc0.vel(), mc0.acc(), mc0.duty()); });
+	exeFunc.addFunc("testvel", [&] {forCons.printf("%f\n",mc0.vel());});
 
 	//Cycle Timer
 	Timer ctrlCycle;
@@ -188,6 +193,10 @@ int main()
 		{
 			cycleChecker.cycle();
 			mc0.cycle();
+            
+			if(upEdge(sw0.digitalRead())){
+				mc0.pos(10.f);
+			}
 		}
 
 		if (dispCycle())
