@@ -155,7 +155,7 @@ int main()
 	adEnc0.rev(true);
 
 	//vel planner
-	trigo_vel_planner_limit triVelPlannerLimit(M_PI*1000.f, M_PI*60.f,M_PI*6.f,M_PI*6.f);
+	trigo_vel_planner_limit triVelPlannerLimit(M_PI*1000.f, M_PI*20.f,M_PI*10.f,M_PI*10.f);
 	trigo_vel_planner triVelPlanner(triVelPlannerLimit);
 
 	// Motor controller
@@ -193,9 +193,9 @@ int main()
 		{
 			cycleChecker.cycle();
 			mc0.cycle();
-            
+
 			if(upEdge(sw0.digitalRead())){
-				mc0.pos(10.f);
+				mc0.pos(200.f);
 			}
 		}
 
