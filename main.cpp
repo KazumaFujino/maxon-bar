@@ -6,6 +6,7 @@
 //controller
 #include "ichigoplus/layer_controller/brush_motor_pos_vel_controller.hpp"
 #include "ichigoplus/layer_controller/trigonometric_velocity_planner.hpp"
+#include "ichigoplus/layer_controller/trapezoidal_velocity_planner.hpp"
 //circuit
 #include "ichigoplus/layer_driver/circuit/emergency.hpp"
 #include "ichigoplus/layer_driver/circuit/sbdbt.hpp"
@@ -16,8 +17,8 @@
 
 #include <math.h>
 
-using trigo_vel_planner_limit = trigonometoric_velocity_planner::Limit_t;
-using trigo_vel_planner = trigonometoric_velocity_planner::TrigonometoricVelocityPlanner;
+using trape_vel_planner_limit = trapezoidal_velocity_planner::Limit_t;
+using trape_vel_planner = trapezoidal_velocity_planner::TrapezoidalVelocityPlanner;
 
 int main()
 {
@@ -151,13 +152,13 @@ int main()
 	adEnc0.rev(true);
 
 	//vel planner
-	trigo_vel_planner_limit triVelPlannerLimit(M_PI*1000.f, M_PI*60.f,M_PI*6.f,M_PI*6.f);
-	trigo_vel_planner triVelPlanner(triVelPlannerLimit);
+	trape_vel_planner_limit traVelPlannerLimit(M_PI*1000.f, M_PI*60.f,M_PI*6.f,M_PI*6.f);
+	trape_vel_planner traVelPlanner(traVelPlannerLimit);
 
 	// Motor controller
-	BrushMotorPosVelController mc0(canMd0, adEnc0, triVelPlanner);
+	BrushMotorPosVelController mc0(canMd0, adEnc0, traVelPlanner);
 	mc0.rotateRatio(5.f, 3.f); //左がエンコーダー，右がモータ
-	mc0.limit(triVelPlannerLimit.pos, triVelPlannerLimit.vel, triVelPlannerLimit.acc, triVelPlannerLimit.dec);
+	mc0.limit(traVelPlannerLimit.pos, traVelPlannerLimit.vel, traVelPlannerLimit.acc, traVelPlannerLimit.dec);
 	mc0.limitDuty(-0.95, 0.95);
 	mc0.outRev(false);
 	mc0.gain(0.7f, 0.003f, 0.f);
