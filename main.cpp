@@ -2,37 +2,52 @@
 #include "ichigoplus/layer_application/cycle_checker.hpp"
 #include "ichigoplus/layer_application/timer.hpp"
 #include "ichigoplus/layer_application/console.hpp"
-
+#include "ichigoplus/layer_application/execute_function.hpp"
 //controller
-
-
+#include "ichigoplus/layer_controller/brush_motor_pos_vel_controller.hpp"
+#include "ichigoplus/layer_controller/trigonometric_velocity_planner.hpp"
 //circuit
 #include "ichigoplus/layer_driver/circuit/emergency.hpp"
 #include "ichigoplus/layer_driver/circuit/sbdbt.hpp"
-
+#include "ichigoplus/layer_driver/circuit/can_motor_driver.hpp"
+#include "ichigoplus/layer_driver/circuit/can_encoder.hpp"
 //device
 #include "layer_driver/device/pin.hpp"
 
+#include <math.h>
 
-int main(){
+using trigo_vel_planner_limit = trigonometoric_velocity_planner::Limit_t;
+using trigo_vel_planner = trigonometoric_velocity_planner::TrigonometoricVelocityPlanner;
+
+int main()
+{
 	//cycle period [ms]
 	constexpr int ctrl_period = 2;
 	constexpr int disp_period = 100;
 
 	//Emergency
-	EmergencySwitch e_switch; e_switch.setupDigitalOut();
-	EmergencyRead	e_read;	e_read.digitalRead();
+	EmergencySwitch e_switch;
+	e_switch.setupDigitalOut();
+	EmergencyRead e_read;
+	e_read.digitalRead();
 	Emergency emergency(e_switch, e_read);
 	emergency.setup();
 
 	//LED
-	Led0 led0;led0.setupDigitalOut();
-	Led1 led1;led1.setupDigitalOut();
-	Led2 led2;led2.setupDigitalOut();
-	Led3 led3;led3.setupDigitalOut();
-	Led4 led4;led4.setupDigitalOut();
-	Led5 led5;led5.setupDigitalOut();
-	ResetLed resetled;resetled.setupDigitalOut();
+	Led0 led0;
+	led0.setupDigitalOut();
+	Led1 led1;
+	led1.setupDigitalOut();
+	Led2 led2;
+	led2.setupDigitalOut();
+	Led3 led3;
+	led3.setupDigitalOut();
+	Led4 led4;
+	led4.setupDigitalOut();
+	Led5 led5;
+	led5.setupDigitalOut();
+	ResetLed resetled;
+	resetled.setupDigitalOut();
 
 	//full color LED
 	Red red;
@@ -42,20 +57,26 @@ int main(){
 	//cycle LED
 	auto &cycleLed = green;
 	green.setupDigitalOut();
-	
+
 	//LCD
-	LCDBackLight lcdbl;lcdbl.setupDigitalOut();
+	LCDBackLight lcdbl;
+	lcdbl.setupDigitalOut();
 	lcdbl.digitalHigh();
 	I2c0 i2c;
 
 	//Buzzer
-	Buzzer buzzer; buzzer.setupPwmOut(2500.0,0.0);
+	Buzzer buzzer;
+	buzzer.setupPwmOut(2500.0, 0.0);
 
 	//Switch
-	Sw0 sw0;sw0.setupDigitalIn();
-	Sw1 sw1;sw1.setupDigitalIn();
-	Sw2 sw2;sw2.setupDigitalIn();
-	Sw3 sw3;sw3.setupDigitalIn();
+	Sw0 sw0;
+	sw0.setupDigitalIn();
+	Sw1 sw1;
+	sw1.setupDigitalIn();
+	Sw2 sw2;
+	sw2.setupDigitalIn();
+	Sw3 sw3;
+	sw3.setupDigitalIn();
 
 	//Pwm
 	Pwm0 pwm0;
@@ -100,6 +121,11 @@ int main(){
 	cons.setup(115200);
 	cons.setNewLine(Console::NEWLINE_CRLF);
 
+	//ExecuteFunction
+	ExecuteFunction exeFunc;
+	cons.addCommand(exeFunc);
+
+
 	//Sbdbt
 	Sbdbt psCon(serial5);
 	psCon.setup();
@@ -114,6 +140,36 @@ int main(){
 	Can0 can0;
 	Can1 can1;
 
+	//Can Encoder
+	CanEncoder canEnc0(can0, 0 + 0x10, ctrl_period);
+
+	//Can MD
+	CanMotorDriver canMd0(can0, 0);
+
+	//Advanced Encoder
+	AdvancedEncoder adEnc0(canEnc0, 400);
+	adEnc0.rev(true);
+
+	//vel planner
+	trigo_vel_planner_limit triVelPlannerLimit(M_PI*1000.f, M_PI*60.f,M_PI*6.f,M_PI*6.f);
+	trigo_vel_planner triVelPlanner(triVelPlannerLimit);
+
+	// Motor controller
+	BrushMotorPosVelController mc0(canMd0, adEnc0, triVelPlanner);
+	mc0.rotateRatio(5.f, 3.f); //左がエンコーダー，右がモータ
+	mc0.limit(triVelPlannerLimit.pos, triVelPlannerLimit.vel, triVelPlannerLimit.acc, triVelPlannerLimit.dec);
+	mc0.limitDuty(-0.95, 0.95);
+	mc0.outRev(false);
+	mc0.gain(0.7f, 0.003f, 0.f);
+	mc0.commandName("mc");
+	cons.addCommand(mc0);
+	mc0.setup();
+
+	//ExecuteFunction (add func)
+	exeFunc.addFunc("reset", [&] { NVIC_SystemReset(); });
+	exeFunc.addFunc("enc", [&] { forCons.printf("enc_count:%d  adEnc_count:%d\n", canEnc0.count(), adEnc0.count()); });
+	exeFunc.addFunc("mc",  [&] { forCons.printf("pos:%7.2f  vel:%7.2f  acc:%7.2f  duty:%5.2f\n", mc0.pos(), mc0.vel(), mc0.acc(), mc0.duty()); });
+
 	//Cycle Timer
 	Timer ctrlCycle;
 	ctrlCycle(ctrl_period, true);
@@ -122,25 +178,28 @@ int main(){
 
 	//CycleChecker
 	CycleChecker cycleChecker(ctrl_period);
-	
+
 	//main loop
-	while(1){
+	while (1)
+	{
 		emergency.cycle();
 
-		if(ctrlCycle()) {
+		if (ctrlCycle())
+		{
 			cycleChecker.cycle();
-
+			mc0.cycle();
 		}
 
-		if(dispCycle()) {
-			if(cycleChecker()){
-				forCons.printf("cycle was delayed : %lld[ms]\n",cycleChecker.getMaxDelay());
+		if (dispCycle())
+		{
+			if (cycleChecker())
+			{
+				forCons.printf("cycle was delayed : %lld[ms]\n", cycleChecker.getMaxDelay());
 				cycleChecker.reset();
 			}
+			//forCons.printf("%f\n",adEnc0.value());
 			cons.cycle();
 			cycleLed.digitalToggle();
 		}
-
 	}
-
 }
