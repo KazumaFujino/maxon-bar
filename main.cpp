@@ -12,6 +12,10 @@
 #include "ichigoplus/layer_driver/circuit/sbdbt.hpp"
 #include "ichigoplus/layer_driver/circuit/can_motor_driver.hpp"
 #include "ichigoplus/layer_driver/circuit/can_encoder.hpp"
+
+//lib_src
+#include "ichigoplus/lib_src/utilplus.hpp"
+
 //device
 #include "layer_driver/device/pin.hpp"
 
@@ -78,6 +82,9 @@ int main()
 	sw2.setupDigitalIn();
 	Sw3 sw3;
 	sw3.setupDigitalIn();
+
+	//UpEdge
+	rp_lib::UpEdge upEdge;
 
 	//Pwm
 	Pwm0 pwm0;
@@ -152,7 +159,7 @@ int main()
 	adEnc0.rev(true);
 
 	//vel planner
-	trape_vel_planner_limit traVelPlannerLimit(M_PI*1000.f, M_PI*60.f,M_PI*6.f,M_PI*6.f);
+	trape_vel_planner_limit traVelPlannerLimit(M_PI*1000.f, M_PI*20.f,M_PI*10.f,M_PI*10.f);
 	trape_vel_planner traVelPlanner(traVelPlannerLimit);
 
 	// Motor controller
@@ -167,10 +174,10 @@ int main()
 	mc0.setup();
 
 	//ExecuteFunction (add func)
-	exeFunc.addFunc("reset", [&] { NVIC_SystemReset(); });
+	exeFunc.addFunc("reset",[&] { NVIC_SystemReset();});
 	exeFunc.addFunc("enc", [&] { forCons.printf("enc_count:%d  adEnc_count:%d\n", canEnc0.count(), adEnc0.count()); });
 	exeFunc.addFunc("mc",  [&] { forCons.printf("pos:%7.2f  vel:%7.2f  acc:%7.2f  duty:%5.2f\n", mc0.pos(), mc0.vel(), mc0.acc(), mc0.duty()); });
-
+	exeFunc.addFunc("testvel",[&] {forCons.printf("%f\n",mc0.vel());});
 	//Cycle Timer
 	Timer ctrlCycle;
 	ctrlCycle(ctrl_period, true);
@@ -189,6 +196,11 @@ int main()
 		{
 			cycleChecker.cycle();
 			mc0.cycle();
+
+			if(upEdge(sw0.digitalRead()))
+			{
+				mc0.pos(200.f);
+			}
 		}
 
 		if (dispCycle())
@@ -197,6 +209,7 @@ int main()
 			{
 				forCons.printf("cycle was delayed : %lld[ms]\n", cycleChecker.getMaxDelay());
 				cycleChecker.reset();
+
 			}
 			//forCons.printf("%f\n",adEnc0.value());
 			cons.cycle();
